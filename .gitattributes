@@ -1,0 +1,4 @@
+# 셸 스크립트·SQL은 항상 LF (CI 리눅스 환경에서 CRLF면 실행 실패)
+*.sh text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf

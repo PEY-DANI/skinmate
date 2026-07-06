@@ -1,0 +1,25 @@
+# secrets / local config
+.env
+
+# OMC runtime state
+.omc/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# 개인 메모 (공유 레포 제외)
+00._thinking/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# misc
+.DS_Store
+*.log

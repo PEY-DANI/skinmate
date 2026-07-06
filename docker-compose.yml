@@ -1,0 +1,24 @@
+services:
+  db:
+    build: ./db
+    container_name: skinmate-db
+    # AGE는 shared_preload_libraries 등록이 필요 (세션마다 LOAD 'age' 생략 가능)
+    command: postgres -c shared_preload_libraries=age
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-skinmate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skinmate-dev-only}
+      POSTGRES_DB: ${POSTGRES_DB:-skinmate}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # 최초 기동 시 확장 생성 (데이터 볼륨이 비어 있을 때만 실행됨)
+      - ./db/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-skinmate} -d ${POSTGRES_DB:-skinmate}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  db_data:
