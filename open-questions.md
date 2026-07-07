@@ -15,6 +15,8 @@
 
 ### Remaining (execution-time check, non-blocking)
 - [ ] Confirm Paula's Choice product pages actually clear the AC-D1 ≥60% formulation/texture-token gate at ingestion; if under, hand-curate the shortfall (fallback already in plan Step 2).
+  - **DECIDED (2026-07-07): measure-first.** Do NOT pre-lock the token dictionary, the "present" threshold, or the hand-curate fallback size now — they can't be tuned without real crawl numbers. Crawl Paula's Choice during Step 2 (ingestion), measure actual formulation/texture-token coverage + vocabulary diversity, THEN finalize the gate definition and (if under) the hand-curate set from observed data. Not runnable yet: repo is at Phase 0.1 (skeleton only); this executes when Step 2 is built.
+  - Carry-forward notes for when measurement runs: (a) split the gate into **coverage** (≥60% of product descriptions contain ≥1 formulation token) **and vocabulary diversity** (≥K distinct texture tokens across the corpus) to reject a "everything says 크림" false-pass; (b) if the fallback fires, reuse the hand-curated set as the **AC-F1 texture-labeled fixture** (no duplicate work); (c) treat as a conditional blocker for AC-F1 / AC-R4(c), since formulation ranking rides entirely on D_DOC description tokens.
 
 ### Deliberately out of scope for v1 (not open — recorded so they aren't re-raised)
 - Reconciliation with `db/schema.sql` — intentionally dismissed (pure fresh start).
