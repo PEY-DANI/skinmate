@@ -88,6 +88,14 @@ BEGIN → 관계형 INSERT/UPDATE + pgvector 쓰기 + AGE cypher() 쓰기 → CO
 - 📋 [요구사항 스펙 (Deep Interview)](deep-interview-skinmate.md) — 토폴로지, 목표, 제약, 수용 기준, 온톨로지, 인터뷰 트랜스크립트
 - 📐 [합의 플랜 (Consensus Plan)](skinmate-consensus-plan.md) — 아키텍처, 데이터 모델, 구현 단계, 리스크, ADR (Architect + Critic 검토 반영)
 - ❓ [미결 사항 (Open Questions)](open-questions.md)
+- 🤝 [팀 합의본 (Team Agreement)](team-agreement.md) — 2-worker 역할 분담, ★ 공유 seam 확정본, 협업 규칙
+
+### 실행 스펙 (착수하는 LLM/개발자용, `docs/`)
+
+- 🗂️ [WBS & TODO](docs/WBS.md) — 작업 분해, 우선순위(P0/P1/P2), 의존 그래프, 임계경로, 핵심 우선 작업
+- 📄 [PRD (기능 상세)](docs/PRD.md) — 기능별 목표·사용자 시나리오·비즈니스 로직·예외 처리
+- 🧰 [환경 & 컨벤션](docs/ENVIRONMENT.md) — 기술 스택, 개발환경 셋업, 디렉토리 소유, 코딩 컨벤션
+- ✅ [인수조건 & 테스트](docs/ACCEPTANCE-TESTING.md) — AC 완료 체크리스트, 테스트 계층·도구, 핵심 테스트, CI 게이트
 
 ## 착수 전 남은 확인
 
