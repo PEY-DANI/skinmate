@@ -17,6 +17,7 @@ dependencies = [
     "structlog>=24.1",        # 구조화 로깅
     "pydantic>=2.6",          # contracts 데이터 형식
     "pydantic-settings>=2.2", # 환경변수 설정
+    "beautifulsoup4>=4.12",   # HTML 파서
 ]
 
 [project.optional-dependencies]
@@ -59,3 +60,4 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+pythonpath = ["."]

@@ -30,3 +30,7 @@ dist/
 # misc
 .DS_Store
 *.log
+
+# Database data dump (git 제외)
+db/initdb/05-skinmate-data.sql
+db/skinmate_data_dump.sql
