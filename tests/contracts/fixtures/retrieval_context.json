@@ -1,0 +1,43 @@
+{
+  "query": "가을이라 건조한데 끈적한 오일 말고 에멀전으로 보습 확실한 거 추천해줘",
+  "products": [
+    { "product_id": 10, "name": "수분 에멀전", "brand": "coos" },
+    { "product_id": 11, "name": "히알루론 세럼", "brand": "paulas-choice" }
+  ],
+  "graph_paths": [
+    {
+      "nodes": [
+        { "kind": "User", "key": "user:1", "label": "나" },
+        { "kind": "Concern", "key": "dryness", "label": "건조" },
+        { "kind": "Ingredient", "key": "hyaluronic_acid", "label": "히알루론산" },
+        { "kind": "Product", "key": "prod:10", "label": "수분 에멀전" }
+      ],
+      "edges": [
+        { "rel": "HAS_CONCERN", "from_idx": 0, "to_idx": 1, "season": "가을" },
+        { "rel": "TREATS", "from_idx": 2, "to_idx": 1 },
+        { "rel": "CONTAINS", "from_idx": 3, "to_idx": 2 }
+      ]
+    }
+  ],
+  "memory_facts": [
+    {
+      "memory_id": 101,
+      "fact_type": "avoid_ingredient",
+      "content": "오일 제형은 안 맞았어요",
+      "effective_weight": 0.82,
+      "frequency": 3,
+      "last_seen": "2026-07-01T09:00:00Z",
+      "target_ingredient_id": 55,
+      "target_name": null,
+      "season": null
+    }
+  ],
+  "doc_hits": [
+    {
+      "doc_id": 7,
+      "content": "가을철 건조에는 히알루론산 계열의 수분 보습이 끈적임 없이 효과적이다.",
+      "score": 0.79,
+      "source_meta": { "url": "https://example.com/skincare/autumn", "kind": "article", "crawled_at": "2026-06-30" }
+    }
+  ]
+}

@@ -23,8 +23,10 @@ jobs:
         run: black --check .
       - name: mypy
         run: mypy src
-      - name: pytest
-        run: pytest
+      - name: unit tests
+        run: pytest --ignore=tests/contracts
+      - name: contract tests (⭐7 스텁↔실물·DB 파리티)
+        run: pytest tests/contracts
 
   db-smoke:
     name: db extensions smoke
