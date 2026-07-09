@@ -10,11 +10,24 @@ from __future__ import annotations
 from typing import Any
 
 import psycopg
+from psycopg.types.json import Jsonb
+from pydantic import BaseModel
 
 from skinmate.contracts.facts import FactType
 
 # 반복 언급(no-op) 시 base_weight 증가분. frequency 와 함께 "자주 언급 상위"를 만든다.
 MENTION_WEIGHT_INCREMENT = 1.0
+
+
+class ActiveMemory(BaseModel):
+    """활성(미삭제) 기억 행의 CRUD 판정용 최소 뷰(1B.2 judge 입력)."""
+
+    memory_id: int
+    fact_type: FactType
+    slot_key: str | None
+    target_name: str | None
+    content: str
+    season: str | None
 
 
 def insert_memory(
@@ -76,4 +89,86 @@ def soft_delete_memory(conn: psycopg.Connection[Any], memory_id: int) -> None:
         cur.execute(
             "UPDATE memories SET deleted_at = now() WHERE memory_id = %s AND deleted_at IS NULL",
             (memory_id,),
+        )
+
+
+def list_active(conn: psycopg.Connection[Any], user_id: int) -> list[ActiveMemory]:
+    """user 의 활성 기억을 CRUD 판정용 최소 뷰로 반환. user_scope 안에서 호출(RLS)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT memory_id, fact_type, slot_key, target_name, content, season
+            FROM memories
+            WHERE user_id = %s AND deleted_at IS NULL
+            """,
+            (user_id,),
+        )
+        rows = cur.fetchall()
+    return [
+        ActiveMemory(
+            memory_id=r[0],
+            fact_type=FactType(r[1]),
+            slot_key=r[2],
+            target_name=r[3],
+            content=r[4],
+            season=r[5],
+        )
+        for r in rows
+    ]
+
+
+def update_memory(
+    conn: psycopg.Connection[Any],
+    memory_id: int,
+    *,
+    content: str,
+    fact_type: FactType,
+    slot_key: str | None = None,
+    season: str | None = None,
+    target_name: str | None = None,
+) -> None:
+    """같은 슬롯의 값 전환(update): 최신값으로 덮고 재언급으로 취급(가중치·빈도 상승)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE memories
+            SET content = %s, fact_type = %s, slot_key = %s, season = %s, target_name = %s,
+                base_weight = base_weight + %s, frequency = frequency + 1, last_seen = now()
+            WHERE memory_id = %s AND deleted_at IS NULL
+            """,
+            (
+                content,
+                str(fact_type),
+                slot_key,
+                season,
+                target_name,
+                MENTION_WEIGHT_INCREMENT,
+                memory_id,
+            ),
+        )
+
+
+def insert_audit(
+    conn: psycopg.Connection[Any],
+    *,
+    user_id: int,
+    memory_id: int | None,
+    op: str,
+    old_val: dict[str, Any] | None,
+    new_val: dict[str, Any] | None,
+) -> None:
+    """CRUD 감사로그 1행. delete 는 하드삭제 대신 이 로그로 추적(AC-M1). user_scope 안에서 호출."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO memory_audit (user_id, memory_id, op, old_val, new_val)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (
+                user_id,
+                memory_id,
+                op,
+                Jsonb(old_val) if old_val is not None else None,
+                Jsonb(new_val) if new_val is not None else None,
+            ),
         )
