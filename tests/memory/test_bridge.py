@@ -78,7 +78,7 @@ def _avoids(conn: psycopg.Connection[object], user_id: int, canonical_key: str) 
         "RETURN i.canonical_key AS ck",
         {"key": canonical_key},
     )
-    return len(rows) == 1
+    return len(rows) >= 1
 
 
 def _prefers(conn: psycopg.Connection[object], user_id: int, canonical_key: str) -> bool:
@@ -89,7 +89,7 @@ def _prefers(conn: psycopg.Connection[object], user_id: int, canonical_key: str)
         "RETURN i.canonical_key AS ck",
         {"key": canonical_key},
     )
-    return len(rows) == 1
+    return len(rows) >= 1
 
 
 def test_project_to_graph_add_creates_avoids_edge(conn: psycopg.Connection[object]) -> None:

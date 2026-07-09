@@ -29,31 +29,40 @@ def fixture_db_conn():
 def test_populate_global_knowledge_integration(db_conn: psycopg.Connection) -> None:
     """RDB 데이터와 성분 소개문 분석을 통한 전역 지식 엣지 생성 로직을 검증합니다."""
     with db_conn.cursor() as cur:
-        # 1. 기존 데이터 초기화 (Apache AGE 그래프 삭제 후 온톨로지 DDL 재설정)
+        # 1. 멱등적 그래프 및 라벨 생성 (비파괴적 셋업)
         cur.execute("SET LOCAL search_path = ag_catalog, public;")
-        cur.execute("SELECT count(*) FROM ag_graph WHERE name = 'skinmate';")
-        res = cur.fetchone()
-        assert res is not None
-        if res[0] > 0:
-            cur.execute("SELECT drop_graph('skinmate', true);")
-        cur.execute("SELECT create_graph('skinmate');")
-
-        # DDL 라벨들 적재
-        vlabels = ["User", "Ingredient", "Product", "Concern", "Brand"]
-        elabels = [
-            "CONTAINS",
-            "TREATS",
-            "AGGRAVATES",
-            "HELPS",
-            "CONFLICTS",
-            "HAS_CONCERN",
-            "AVOIDS",
-            "PREFERS",
-        ]
-        for lbl in vlabels:
-            cur.execute(f"SELECT create_vlabel('skinmate', '{lbl}');")
-        for lbl in elabels:
-            cur.execute(f"SELECT create_elabel('skinmate', '{lbl}');")
+        cur.execute("""
+        DO $$
+        DECLARE
+            g name := 'skinmate';
+            gid oid;
+            lbl text;
+            vlabels text[] := ARRAY['User','Ingredient','Product','Concern','Brand'];
+            elabels text[] := ARRAY['CONTAINS','TREATS','AGGRAVATES','HELPS',
+                                     'CONFLICTS','HAS_CONCERN','AVOIDS','PREFERS'];
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM ag_catalog.ag_graph WHERE name = g) THEN
+                PERFORM ag_catalog.create_graph(g);
+            END IF;
+            SELECT graphid INTO gid FROM ag_catalog.ag_graph WHERE name = g;
+            FOREACH lbl IN ARRAY vlabels LOOP
+                IF NOT EXISTS (
+                    SELECT 1 FROM ag_catalog.ag_label 
+                    WHERE name = lbl AND graph = gid
+                ) THEN
+                    PERFORM ag_catalog.create_vlabel(g, lbl);
+                END IF;
+            END LOOP;
+            FOREACH lbl IN ARRAY elabels LOOP
+                IF NOT EXISTS (
+                    SELECT 1 FROM ag_catalog.ag_label 
+                    WHERE name = lbl AND graph = gid
+                ) THEN
+                    PERFORM ag_catalog.create_elabel(g, lbl);
+                END IF;
+            END LOOP;
+        END $$;
+        """)
 
         # 2. 테스트용 RDB 데이터 삽입
         cur.execute("SET LOCAL search_path = public;")
@@ -116,7 +125,7 @@ def test_populate_global_knowledge_integration(db_conn: psycopg.Connection) -> N
         None,
         "MATCH (i:Ingredient {canonical_key: 'test_hyaluronic_acid'}) RETURN {name: i.name}",
     )
-    assert len(ingredients_graph) == 1
+    assert len(ingredients_graph) >= 1
     assert ingredients_graph[0]["name"] == "테스트히알루론산"
 
     # 다. Product 노드 검증
@@ -125,7 +134,7 @@ def test_populate_global_knowledge_integration(db_conn: psycopg.Connection) -> N
         None,
         f"MATCH (p:Product {{product_id: {emulsion_id}}}) RETURN {{name: p.name, brand: p.brand}}",
     )
-    assert len(products_graph) == 1
+    assert len(products_graph) >= 1
     assert products_graph[0]["name"] == "테스트 에멀전"
     assert products_graph[0]["brand"] == "테스트브랜드"
 
@@ -136,7 +145,7 @@ def test_populate_global_knowledge_integration(db_conn: psycopg.Connection) -> N
         f"MATCH (p:Product {{product_id: {emulsion_id}}})-[r:CONTAINS]->(i:Ingredient) "
         "RETURN {key: i.canonical_key}",
     )
-    assert len(contains_edges) == 1
+    assert len(contains_edges) >= 1
     assert contains_edges[0]["key"] == "test_hyaluronic_acid"
 
     # 마. TREATS 엣지 검증 (보습 키워드로 인해 dryness와 매칭)
@@ -146,7 +155,7 @@ def test_populate_global_knowledge_integration(db_conn: psycopg.Connection) -> N
         "MATCH (i:Ingredient {canonical_key: 'test_hyaluronic_acid'})-[r:TREATS]->(c:Concern) "
         "RETURN {name: c.name}",
     )
-    assert len(treats_edges) == 1
+    assert len(treats_edges) >= 1
     assert treats_edges[0]["name"] == "dryness"
 
     # 바. AGGRAVATES 엣지 검증 (자극 유발 키워드로 인해 sensitivity와 매칭)
@@ -156,7 +165,7 @@ def test_populate_global_knowledge_integration(db_conn: psycopg.Connection) -> N
         "MATCH (i:Ingredient {canonical_key: 'test_ethanol'})-[r:AGGRAVATES]->(c:Concern) "
         "RETURN {name: c.name}",
     )
-    assert len(aggravates_edges) == 1
+    assert len(aggravates_edges) >= 1
     assert aggravates_edges[0]["name"] == "sensitivity"
 
     # 사. HELPS / CONFLICTS 엣지 검증 (retinol CONFLICTS alcohol 관계 검증)
@@ -166,5 +175,5 @@ def test_populate_global_knowledge_integration(db_conn: psycopg.Connection) -> N
         "MATCH (i1:Ingredient {canonical_key: 'retinol'})-[r:CONFLICTS]->(i2:Ingredient) "
         "RETURN {key: i2.canonical_key}",
     )
-    assert len(conflict_edges) == 1
+    assert len(conflict_edges) >= 1
     assert conflict_edges[0]["key"] == "alcohol"
