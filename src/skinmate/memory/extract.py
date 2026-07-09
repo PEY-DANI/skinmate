@@ -34,6 +34,7 @@ _SCHEMA: dict[str, object] = {
                     "content": {"type": "string"},
                     "target_name": {"type": ["string", "null"]},
                     "season": {"type": ["string", "null"]},
+                    "retract": {"type": "boolean"},
                 },
                 "required": ["fact_type", "content"],
             },
@@ -50,6 +51,7 @@ class ExtractedFact(BaseModel):
     content: str
     target_name: str | None = None  # 성분/브랜드/고민 이름(다리 연결용 원시 값)
     season: str | None = None
+    retract: bool = False  # 철회 발화("이제 안 피해도 돼")면 True → 1B.2 에서 delete 판정
 
 
 def extract_facts(provider: LLMProvider, utterance: str) -> list[ExtractedFact]:
