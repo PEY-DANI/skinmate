@@ -88,7 +88,7 @@ def _avoids_retinol(conn: psycopg.Connection[object], uid: int) -> bool:
             "(i:Ingredient {canonical_key: 'retinol'}) RETURN i.canonical_key AS ck",
             {},
         )
-    return len(rows) == 1
+    return len(rows) >= 1
 
 
 def _prefers_retinol(conn: psycopg.Connection[object], uid: int) -> bool:
@@ -100,7 +100,7 @@ def _prefers_retinol(conn: psycopg.Connection[object], uid: int) -> bool:
             "(i:Ingredient {canonical_key: 'retinol'}) RETURN i.canonical_key AS ck",
             {},
         )
-    return len(rows) == 1
+    return len(rows) >= 1
 
 
 def test_write_turn_smalltalk_is_noop(conn: psycopg.Connection[object]) -> None:

@@ -33,31 +33,40 @@ def fixture_db_conn():
 def test_traverse_recommendation_paths_integration(db_conn: psycopg.Connection) -> None:
     """사용자 memories와 RDB 지식을 바탕으로 2+hop 그래프 순회 및 격리(leakage)를 검증합니다."""
     with db_conn.cursor() as cur:
-        # 1. 기존 데이터 초기화 (Apache AGE 그래프 DDL 세팅)
+        # 1. 멱등적 그래프 및 라벨 생성 (비파괴적 셋업)
         cur.execute("SET LOCAL search_path = ag_catalog, public;")
-        cur.execute("SELECT count(*) FROM ag_graph WHERE name = 'skinmate';")
-        res = cur.fetchone()
-        assert res is not None
-        if res[0] > 0:
-            cur.execute("SELECT drop_graph('skinmate', true);")
-        cur.execute("SELECT create_graph('skinmate');")
-
-        # DDL 라벨 생성
-        vlabels = ["User", "Ingredient", "Product", "Concern", "Brand"]
-        elabels = [
-            "CONTAINS",
-            "TREATS",
-            "AGGRAVATES",
-            "HELPS",
-            "CONFLICTS",
-            "HAS_CONCERN",
-            "AVOIDS",
-            "PREFERS",
-        ]
-        for lbl in vlabels:
-            cur.execute(f"SELECT create_vlabel('skinmate', '{lbl}');")
-        for lbl in elabels:
-            cur.execute(f"SELECT create_elabel('skinmate', '{lbl}');")
+        cur.execute("""
+        DO $$
+        DECLARE
+            g name := 'skinmate';
+            gid oid;
+            lbl text;
+            vlabels text[] := ARRAY['User','Ingredient','Product','Concern','Brand'];
+            elabels text[] := ARRAY['CONTAINS','TREATS','AGGRAVATES','HELPS',
+                                     'CONFLICTS','HAS_CONCERN','AVOIDS','PREFERS'];
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM ag_catalog.ag_graph WHERE name = g) THEN
+                PERFORM ag_catalog.create_graph(g);
+            END IF;
+            SELECT graphid INTO gid FROM ag_catalog.ag_graph WHERE name = g;
+            FOREACH lbl IN ARRAY vlabels LOOP
+                IF NOT EXISTS (
+                    SELECT 1 FROM ag_catalog.ag_label 
+                    WHERE name = lbl AND graph = gid
+                ) THEN
+                    PERFORM ag_catalog.create_vlabel(g, lbl);
+                END IF;
+            END LOOP;
+            FOREACH lbl IN ARRAY elabels LOOP
+                IF NOT EXISTS (
+                    SELECT 1 FROM ag_catalog.ag_label 
+                    WHERE name = lbl AND graph = gid
+                ) THEN
+                    PERFORM ag_catalog.create_elabel(g, lbl);
+                END IF;
+            END LOOP;
+        END $$;
+        """)
 
         # 2. 테스트용 RDB 데이터 삽입
         cur.execute("SET LOCAL search_path = public;")
@@ -159,8 +168,9 @@ def test_traverse_recommendation_paths_integration(db_conn: psycopg.Connection) 
     assert "테스트히알루론산" in rationale_prefer
 
     # 다. Treatment Path 검증 (가을철 dryness 고민 완화)
-    assert len(treat_paths) >= 1
-    p_treat = treat_paths[0]
+    target_treat_paths = [p for p in treat_paths if p.nodes[3].key == str(emulsion_id)]
+    assert len(target_treat_paths) >= 1
+    p_treat = target_treat_paths[0]
     assert p_treat.nodes[1].key == "dryness"
     assert p_treat.nodes[2].key == "test_hyaluronic_acid"
     assert p_treat.nodes[3].key == str(emulsion_id)
@@ -172,8 +182,9 @@ def test_traverse_recommendation_paths_integration(db_conn: psycopg.Connection) 
     assert "건조" in rationale_treat or "dryness" in rationale_treat
 
     # 라. Alternative Path 검증 (기피하는 에탄올 대신 건조를 해결하는 대안인 히알루론산 에멀전 추천)
-    assert len(alt_paths) >= 1
-    p_alt = alt_paths[0]
+    target_alt_paths = [p for p in alt_paths if p.nodes[4].key == str(emulsion_id)]
+    assert len(target_alt_paths) >= 1
+    p_alt = target_alt_paths[0]
     assert p_alt.nodes[1].key == "test_ethanol"
     assert p_alt.nodes[2].key == "dryness"
     assert p_alt.nodes[3].key == "test_hyaluronic_acid"

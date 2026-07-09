@@ -232,7 +232,7 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
         for uid in user_ids:
             user_sqls.append(
                 f"SELECT * FROM cypher('skinmate', $$"
-                f"MERGE (u:User {{id: {int(uid)}}})"
+                f"MERGE (u:User {{user_id: {int(uid)}}})"
                 f"$$) AS (result agtype);"
             )
         if user_sqls:
@@ -253,7 +253,7 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
                 continue
             avoid_sqls.append(
                 f"SELECT * FROM cypher('skinmate', $$"
-                f"MATCH (u:User {{id: {int(uid)}}}), "
+                f"MATCH (u:User {{user_id: {int(uid)}}}), "
                 f"      (i:Ingredient {{canonical_key: '{safe_key}'}})"
                 f"MERGE (u)-[r:AVOIDS {{user_scope: {int(uid)}}}]->(i)"
                 f"$$) AS (result agtype);"
@@ -276,7 +276,7 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
                 continue
             prefer_sqls.append(
                 f"SELECT * FROM cypher('skinmate', $$"
-                f"MATCH (u:User {{id: {int(uid)}}}), "
+                f"MATCH (u:User {{user_id: {int(uid)}}}), "
                 f"      (i:Ingredient {{canonical_key: '{safe_key}'}})"
                 f"MERGE (u)-[r:PREFERS {{user_scope: {int(uid)}}}]->(i)"
                 f"$$) AS (result agtype);"
@@ -301,7 +301,7 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
                 props += f", season: '{safe_str(season)}'"
             concern_sqls.append(
                 f"SELECT * FROM cypher('skinmate', $$"
-                f"MATCH (u:User {{id: {int(uid)}}}), "
+                f"MATCH (u:User {{user_id: {int(uid)}}}), "
                 f"      (c:Concern {{name: '{safe_target}'}})"
                 f"MERGE (u)-[r:HAS_CONCERN {{{props}}}]->(c)"
                 f"$$) AS (result agtype);"

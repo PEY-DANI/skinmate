@@ -29,9 +29,9 @@ def traverse_recommendation_paths(
     # 1. Avoidance Paths (기피 성분 함유 제품 경로)
     # (:User)-[:AVOIDS]->(:Ingredient)<-[:CONTAINS]-(:Product)
     avoid_query = """
-    MATCH (u:User {id: $user_scope})-[r1:AVOIDS]->(i:Ingredient)<-[r2:CONTAINS]-(p:Product)
+    MATCH (u:User {user_id: $user_scope})-[r1:AVOIDS]->(i:Ingredient)<-[r2:CONTAINS]-(p:Product)
     RETURN {
-        u_id: u.id,
+        u_id: u.user_id,
         r1_rel: type(r1),
         i_key: i.canonical_key, i_name: i.name,
         r2_rel: type(r2),
@@ -62,9 +62,9 @@ def traverse_recommendation_paths(
     # 2. Preference Paths (선호 성분 함유 제품 경로)
     # (:User)-[:PREFERS]->(:Ingredient)<-[:CONTAINS]-(:Product)
     prefer_query = """
-    MATCH (u:User {id: $user_scope})-[r1:PREFERS]->(i:Ingredient)<-[r2:CONTAINS]-(p:Product)
+    MATCH (u:User {user_id: $user_scope})-[r1:PREFERS]->(i:Ingredient)<-[r2:CONTAINS]-(p:Product)
     RETURN {
-        u_id: u.id,
+        u_id: u.user_id,
         r1_rel: type(r1),
         i_key: i.canonical_key, i_name: i.name,
         r2_rel: type(r2),
@@ -94,10 +94,10 @@ def traverse_recommendation_paths(
     # 3. Treatment Paths (피부 고민 해결 경로)
     # (:User)-[:HAS_CONCERN]->(:Concern)<-[:TREATS]-(:Ingredient)<-[:CONTAINS]-(:Product)
     treat_query = """
-    MATCH (u:User {id: $user_scope})-[r1:HAS_CONCERN]->(c:Concern)
+    MATCH (u:User {user_id: $user_scope})-[r1:HAS_CONCERN]->(c:Concern)
     MATCH (c)<-[r2:TREATS]-(i:Ingredient)<-[r3:CONTAINS]-(p:Product)
     RETURN {
-        u_id: u.id,
+        u_id: u.user_id,
         r1_rel: type(r1), r1_season: r1.season,
         c_name: c.name, c_label: c.label,
         r2_rel: type(r2),
@@ -137,12 +137,12 @@ def traverse_recommendation_paths(
     # (:User)-[:AVOIDS]->(i1:Ingredient)-[:TREATS]->(:Concern)
     #               <-[:TREATS]-(i2:Ingredient)<-[:CONTAINS]-(:Product)
     alt_query = """
-    MATCH (u:User {id: $user_scope})-[r1:AVOIDS]->(i1:Ingredient)
+    MATCH (u:User {user_id: $user_scope})-[r1:AVOIDS]->(i1:Ingredient)
     MATCH (i1)-[r2:TREATS]->(c:Concern)
     MATCH (c)<-[r3:TREATS]-(i2:Ingredient)<-[r4:CONTAINS]-(p:Product)
     WHERE i1.canonical_key <> i2.canonical_key
     RETURN {
-        u_id: u.id,
+        u_id: u.user_id,
         r1_rel: type(r1),
         i1_key: i1.canonical_key, i1_name: i1.name,
         r2_rel: type(r2),
