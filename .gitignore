@@ -1,6 +1,9 @@
 # secrets / local config
 .env
 
+# 로컬 전용 실험/테스트 도구 (커밋 제외)
+.local/
+
 # OMC runtime state
 .omc/
 
