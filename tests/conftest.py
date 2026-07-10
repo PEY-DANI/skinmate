@@ -4,8 +4,30 @@ from __future__ import annotations
 
 import os
 
+from dotenv import load_dotenv
 import psycopg
 import pytest
+
+# pytest 구동 시 로컬 .env 로드
+load_dotenv()
+
+# 개발 DB 오염 방지를 위한 테스트 DB 안전 격리막:
+# 테스트 세션 중에는 DATABASE_URL을 무조건 'skinmate_test' 데이터베이스로 강제 변환합니다.
+_db_url = os.getenv("DATABASE_URL", "postgresql://skinmate:skinmate-dev-only@localhost:5432/skinmate")
+if "skinmate_test" not in _db_url:
+    if "@" in _db_url:
+        _prefix, _host_part = _db_url.split("@", 1)
+        if "/" in _host_part:
+            _host_info, _db_name = _host_part.split("/", 1)
+            if "?" in _db_name:
+                _db_name, _query_params = _db_name.split("?", 1)
+                _db_url = f"{_prefix}@{_host_info}/skinmate_test?{_query_params}"
+            else:
+                _db_url = f"{_prefix}@{_host_info}/skinmate_test"
+        else:
+            _db_url = f"{_prefix}@{_host_part}/skinmate_test"
+    os.environ["DATABASE_URL"] = _db_url
+
 
 
 @pytest.fixture(scope="function", autouse=True)

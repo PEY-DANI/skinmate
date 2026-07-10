@@ -18,10 +18,18 @@ from skinmate.graph.traverse import (
 @pytest.fixture(name="db_conn")
 def fixture_db_conn():
     """테스트용 DB 연결 피스처. superuser 권한(skinmate) 접속 및 테스트 후 자동 롤백."""
-    db_url = os.getenv(
+    base_url = os.getenv(
         "DATABASE_URL",
         "postgresql://skinmate:skinmate-dev-only@localhost:5432/skinmate",
     )
+    # superuser 권한으로 연결하기 위해 계정/비밀번호 정보 치환
+    if "@" in base_url:
+        prefix, host_part = base_url.split("@", 1)
+        pg_pass = os.getenv("POSTGRES_PASSWORD", "qwerty12345")
+        db_url = f"postgresql://skinmate:{pg_pass}@{host_part}"
+    else:
+        db_url = base_url
+
     try:
         with psycopg.connect(db_url, autocommit=False) as conn:
             yield conn

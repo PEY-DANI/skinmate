@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """WBS 1A.7 검색 3종 합치기 및 제형 soft-ranking 단위 테스트."""
 
 from __future__ import annotations
@@ -19,10 +20,18 @@ from skinmate.retrieval.retrieve import retrieve_recommendation_context
 @pytest.fixture(name="db_conn")
 def fixture_db_conn():
     """테스트용 DB 연결 피스처. superuser 권한(skinmate) 접속 및 테스트 후 자동 롤백."""
-    db_url = os.getenv(
+    base_url = os.getenv(
         "DATABASE_URL",
         "postgresql://skinmate:skinmate-dev-only@localhost:5432/skinmate",
     )
+    # superuser 권한으로 연결하기 위해 계정/비밀번호 정보 치환
+    if "@" in base_url:
+        prefix, host_part = base_url.split("@", 1)
+        pg_pass = os.getenv("POSTGRES_PASSWORD", "qwerty12345")
+        db_url = f"postgresql://skinmate:{pg_pass}@{host_part}"
+    else:
+        db_url = base_url
+
     try:
         with psycopg.connect(db_url, autocommit=False) as conn:
             yield conn
@@ -140,33 +149,36 @@ def test_retrieve_recommendation_context_integration(db_conn: psycopg.Connection
     populate_global_knowledge(db_conn)
 
     # 3. 사용자 memories 데이터 삽입 (1B.5 bridge.project_to_graph 실시간 연동)
-    # 가을 건조 고민 등록
-    fact_concern = ExtractedFact(
-        fact_type=FactType.HAS_CONCERN,
-        content="가을철 건조",
-        target_name="건조",
-        season="가을",
-    )
-    decision_concern = CrudDecision(op=CrudOp.ADD, fact=fact_concern)
-    crud.apply_decision(db_conn, 1, decision_concern)
-    bridge.project_to_graph(db_conn, 1, decision_concern, concern_key="dryness")
+    # memories 조작은 RLS scope(user_id=1) 하에서 실행해야 함
+    from skinmate import db
+    with db.user_scope(db_conn, 1):
+        # 가을 건조 고민 등록
+        fact_concern = ExtractedFact(
+            fact_type=FactType.HAS_CONCERN,
+            content="가을철 건조",
+            target_name="건조",
+            season="가을",
+        )
+        decision_concern = CrudDecision(op=CrudOp.ADD, fact=fact_concern)
+        crud.apply_decision(db_conn, 1, decision_concern)
+        bridge.project_to_graph(db_conn, 1, decision_concern, concern_key="dryness")
 
-    # 제형선호 (other 팩트는 RLS memories만 적재하고 그래프는 없음)
-    fact_other = ExtractedFact(
-        fact_type=FactType.OTHER,
-        content="끈적한 제형 싫어 오일 아님, 에멀전인데 보습 확실",
-    )
-    decision_other = CrudDecision(op=CrudOp.ADD, fact=fact_other)
-    crud.apply_decision(db_conn, 1, decision_other)
+        # 제형선호 (other 팩트는 RLS memories만 적재하고 그래프는 없음)
+        fact_other = ExtractedFact(
+            fact_type=FactType.OTHER,
+            content="끈적한 제형 싫어 오일 아님, 에멀전인데 보습 확실",
+        )
+        decision_other = CrudDecision(op=CrudOp.ADD, fact=fact_other)
+        crud.apply_decision(db_conn, 1, decision_other)
 
-    # 5. 검색 융합 API 실행 검증 (season='가을')
-    context = retrieve_recommendation_context(
-        db_conn,
-        user_id=1,
-        query="건조 피부 보습 화장품",
-        season="가을",
-        limit=50,
-    )
+        # 5. 검색 융합 API 실행 검증 (season='가을')
+        context = retrieve_recommendation_context(
+            db_conn,
+            user_id=1,
+            query="건조 피부 보습 화장품",
+            season="가을",
+            limit=50,
+        )
 
     assert context.query == "건조 피부 보습 화장품"
 
@@ -190,24 +202,25 @@ def test_retrieve_recommendation_context_integration(db_conn: psycopg.Connection
     assert idx_emulsion < idx_oil
 
     # 마. Hard-filter 검증
-    # 유저 1번 기억에 기피 성분(테스트에탄올)을 실시간 추가 및 투영 (1B.5 실시간 동기화)
-    fact_avoid = ExtractedFact(
-        fact_type=FactType.AVOID_INGREDIENT,
-        content="에탄올 기피",
-        target_name="테스트에탄올",
-    )
-    decision_avoid = CrudDecision(op=CrudOp.ADD, fact=fact_avoid)
-    crud.apply_decision(db_conn, 1, decision_avoid, target_ingredient_id=ethanol_id)
-    bridge.project_to_graph(db_conn, 1, decision_avoid, ingredient_key="test_ethanol")
+    with db.user_scope(db_conn, 1):
+        # 유저 1번 기억에 기피 성분(테스트에탄올)을 실시간 추가 및 투영 (1B.5 실시간 동기화)
+        fact_avoid = ExtractedFact(
+            fact_type=FactType.AVOID_INGREDIENT,
+            content="에탄올 기피",
+            target_name="테스트에탄올",
+        )
+        decision_avoid = CrudDecision(op=CrudOp.ADD, fact=fact_avoid)
+        crud.apply_decision(db_conn, 1, decision_avoid, target_ingredient_id=ethanol_id)
+        bridge.project_to_graph(db_conn, 1, decision_avoid, ingredient_key="test_ethanol")
 
-    # 다시 융합 검색 조회
-    context_filtered = retrieve_recommendation_context(
-        db_conn,
-        user_id=1,
-        query="건조 피부 보습 화장품",
-        season="가을",
-        limit=50,
-    )
+        # 다시 융합 검색 조회
+        context_filtered = retrieve_recommendation_context(
+            db_conn,
+            user_id=1,
+            query="건조 피부 보습 화장품",
+            season="가을",
+            limit=50,
+        )
     product_names_filtered = [p.name for p in context_filtered.products]
 
     # 에탄올이 든 테스트 오일 제품은 완전 0건으로 하드 필터링되어 나타나지 않아야 함
