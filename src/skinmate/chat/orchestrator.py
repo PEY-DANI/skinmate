@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from skinmate.chat.funnel import known_slots_from_memory, next_funnel_question
 from skinmate.chat.rationale import FALLBACK_MESSAGE, generate_rationale
-from skinmate.chat.route import Route, classify_route
+from skinmate.chat.route import Route, RouteDecision, classify_route
 from skinmate.contracts.facts import RankedFact
 from skinmate.contracts.retrieval import RetrievalContext
 from skinmate.llm.base import LLMProvider
@@ -37,6 +37,7 @@ def handle_turn(
     history: list[str] | None = None,
     memory_facts: list[RankedFact] | None = None,
     retrieval_context: RetrievalContext | None = None,
+    route_decision: RouteDecision | None = None,
 ) -> TurnResult:
     """한 턴을 처리한다.
 
@@ -44,9 +45,13 @@ def handle_turn(
     - VAGUE: memory_facts 로 이미 답변된 슬롯을 역산해 다음 좁히기 질문(AC-R1 좁혀가기).
     - SPECIFIC: retrieval_context 로 근거 생성. context 가 없으면(2.1 배선 전) 좁히기로 폴백
       — 억지 추천 금지(PRD F6 예외처리).
+
+    route_decision 을 미리 계산해 주입할 수 있다 — 2.1 배선에서 라우팅 결과에 따라 실제
+    retrieval_context 를 조회할지 먼저 결정해야 하므로, classify_route 를 중복 호출(LLM
+    쿼터 낭비)하지 않도록 재사용한다. 미제공 시 이 함수가 직접 분류한다(기존 단위테스트 호환).
     """
     memory_facts = memory_facts or []
-    decision = classify_route(provider, utterance, history=history)
+    decision = route_decision or classify_route(provider, utterance, history=history)
 
     if decision.route == Route.STATEMENT:
         return TurnResult(route=Route.STATEMENT, message=ACK_MESSAGE)
