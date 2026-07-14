@@ -12,6 +12,7 @@ from typing import Any
 import psycopg
 
 from skinmate.app.turn import process_turn
+from skinmate.chat.orchestrator import ACK_MESSAGE
 from skinmate.chat.route import Route
 from skinmate.contracts.facts import FactType
 from skinmate.documents.embed import embed_text
@@ -262,7 +263,7 @@ def test_statement_without_funnel_history_keeps_ack(db_conn: psycopg.Connection)
     )
 
     assert result.route == Route.STATEMENT
-    assert result.message == "알려주셔서 감사해요, 기억해 둘게요!"
+    assert result.message == ACK_MESSAGE
 
 
 def test_process_turn_ac_m4_memory_changes_recommendation(db_conn: psycopg.Connection) -> None:

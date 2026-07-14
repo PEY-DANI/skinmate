@@ -18,7 +18,9 @@ from skinmate.contracts.facts import RankedFact
 from skinmate.contracts.retrieval import RetrievalContext
 from skinmate.llm.base import LLMProvider
 
-ACK_MESSAGE = "알려주셔서 감사해요, 기억해 둘게요!"
+# 정보 진술은 저장만 하고 추천하지 않는다(억지 추천 금지) — 대신 다음 행동을 안내해
+# 대화가 뚝 끊기는 느낌을 줄인다(E2E 피드백 반영).
+ACK_MESSAGE = "알려주셔서 감사해요, 기억해 둘게요! 추천이 필요하시면 언제든 말씀해 주세요."
 
 
 class TurnResult(BaseModel):
