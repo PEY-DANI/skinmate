@@ -1,8 +1,7 @@
-"""API 표면(FastAPI) — POST /chat. 요청당 커넥션을 열어 process_turn(2.1)에 위임한다."""
-
-from __future__ import annotations
-
+import os
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from skinmate import db
@@ -13,6 +12,19 @@ from skinmate.llm.base import LLMProvider
 from skinmate.llm.nvidia import NvidiaProvider
 
 app = FastAPI(title="skinmate")
+
+# static 폴더 경로 설정 및 생성 보장
+current_dir = os.path.dirname(os.path.abspath(__file__))
+static_dir = os.path.join(current_dir, "static")
+os.makedirs(static_dir, exist_ok=True)
+
+# 정적 파일 마운트
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+@app.get("/")
+def read_index() -> FileResponse:
+    return FileResponse(os.path.join(static_dir, "index.html"))
 
 
 class ChatRequest(BaseModel):

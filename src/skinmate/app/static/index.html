@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkinMate - AI 화장품 추천 챗봇</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 메인 컨테이너 */
+        #app-container {
+            width: 100%;
+            max-width: 900px;
+            height: 90vh;
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* 헤더 영역 */
+        header {
+            padding: 18px 24px;
+            background: #ffffff;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header-title h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #4f46e5;
+            letter-spacing: -0.5px;
+        }
+        .badge {
+            background-color: #e0e7ff;
+            color: #4f46e5;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+        }
+        .username-display {
+            font-weight: 500;
+            color: #475569;
+        }
+        .logout-btn {
+            background: none;
+            border: 1px solid #cbd5e1;
+            color: #64748b;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .logout-btn:hover {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            border-color: #94a3b8;
+        }
+
+        /* 채팅 메시지 영역 */
+        #chat-window {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            background-color: #fafbfc;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message-row {
+            display: flex;
+            width: 100%;
+            animation: slideUp 0.3s ease-out forwards;
+        }
+        .message-row.user {
+            justify-content: flex-end;
+        }
+        .message-row.ai {
+            justify-content: flex-start;
+        }
+
+        .bubble {
+            max-width: 70%;
+            padding: 14px 18px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-all;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+        }
+        .message-row.user .bubble {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: #ffffff;
+            border-bottom-right-radius: 4px;
+        }
+        .message-row.ai .bubble {
+            background-color: #ffffff;
+            color: #1e293b;
+            border-bottom-left-radius: 4px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* 입력 및 계절 선택 영역 */
+        #input-area {
+            padding: 20px 24px;
+            background: #ffffff;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .input-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .season-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+        .season-selector select {
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            outline: none;
+            background-color: #ffffff;
+            color: #334155;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .input-row {
+            display: flex;
+            gap: 12px;
+        }
+        .input-row textarea {
+            flex: 1;
+            height: 48px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+            font-size: 0.95rem;
+            color: #1e293b;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-row textarea:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        .send-btn {
+            background-color: #4f46e5;
+            color: #ffffff;
+            border: none;
+            padding: 0 24px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .send-btn:hover {
+            background-color: #4338ca;
+        }
+        .send-btn:disabled {
+            background-color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        /* 로그인 모달 오버레이 */
+        #login-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(248, 250, 252, 0.95);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+        .login-card {
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.01);
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .login-card h2 {
+            font-size: 1.5rem;
+            color: #1e293b;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+        .login-card p {
+            font-size: 0.9rem;
+            color: #64748b;
+            margin-bottom: 28px;
+        }
+        .login-input {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px solid #cbd5e1;
+            outline: none;
+            font-family: inherit;
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .login-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #4f46e5;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .login-btn:hover {
+            background-color: #4338ca;
+        }
+
+        /* 로딩 애니메이션 */
+        .typing-loader {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+        }
+        .typing-loader span {
+            width: 8px;
+            height: 8px;
+            background-color: #94a3b8;
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-loader span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-loader span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <!-- 로그인 오버레이 -->
+        <div id="login-overlay">
+            <div class="login-card">
+                <h2>SkinMate 시작하기</h2>
+                <p>기억에 기반한 나만의 화장품 추천 챗봇</p>
+                <input type="text" id="login-username" class="login-input" placeholder="닉네임을 입력해 주세요" maxlength="20">
+                <button id="login-submit" class="login-btn">입장하기</button>
+            </div>
+        </div>
+
+        <!-- 메인 헤더 -->
+        <header>
+            <div class="header-title">
+                <h1>SkinMate AI</h1>
+                <span class="badge">NVIDIA NIM</span>
+            </div>
+            <div class="user-menu">
+                <span class="username-display" id="display-user">사용자</span>
+                <button class="logout-btn" id="logout-trigger">닉네임 변경</button>
+            </div>
+        </header>
+
+        <!-- 대화 화면 -->
+        <div id="chat-window">
+            <div class="message-row ai">
+                <div class="bubble">안녕하세요! 저는 피부 고민과 선호 성분을 기억하여 맞춤 화장품을 추천해 드리는 SkinMate AI입니다. 성향, 고민, 혹은 최근 피부 상태를 알려주시면 기억해 두고 최적의 제품을 추천해 드릴게요!</div>
+            </div>
+        </div>
+
+        <!-- 하단 입력창 -->
+        <div id="input-area">
+            <div class="input-controls">
+                <div class="season-selector">
+                    <label for="season-select">현재 계절:</label>
+                    <select id="season-select">
+                        <option value="">설정 안 함</option>
+                        <option value="봄">봄 🌸</option>
+                        <option value="여름">여름 ☀️</option>
+                        <option value="가을" selected>가을 🍁</option>
+                        <option value="겨울">겨울 ❄️</option>
+                    </select>
+                </div>
+            </div>
+            <div class="input-row">
+                <textarea id="chat-input" placeholder="메시지를 입력하세요... (Shift+Enter로 줄바꿈, Enter로 전송)"></textarea>
+                <button id="send-trigger" class="send-btn">전송</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM 요소 정의
+        const loginOverlay = document.getElementById('login-overlay');
+        const loginUsername = document.getElementById('login-username');
+        const loginSubmit = document.getElementById('login-submit');
+        const displayUser = document.getElementById('display-user');
+        const logoutTrigger = document.getElementById('logout-trigger');
+        const chatWindow = document.getElementById('chat-window');
+        const chatInput = document.getElementById('chat-input');
+        const sendTrigger = document.getElementById('send-trigger');
+        const seasonSelect = document.getElementById('season-select');
+
+        // 상태 관리
+        let currentUser = null;
+        let currentUserId = null;
+        let dialogueHistory = [];
+
+        // DJB2 String Hashing 알고리즘 (닉네임 -> 고유 정수 변환)
+        function djb2Hash(str) {
+            let hash = 5381;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) + hash) + str.charCodeAt(i);
+            }
+            return Math.abs(hash & 0x7FFFFFFF); // 32비트 양의 정수 범위 보장
+        }
+
+        // 로그인 처리
+        function performLogin(username) {
+            if (!username.trim()) {
+                alert('닉네임을 입력해 주세요.');
+                return;
+            }
+            currentUser = username.trim();
+            currentUserId = djb2Hash(currentUser);
+
+            // 로컬스토리지 저장
+            localStorage.setItem('skinmate_username', currentUser);
+
+            // UI 갱신
+            displayUser.textContent = `${currentUser} 님`;
+            loginOverlay.style.opacity = '0';
+            setTimeout(() => {
+                loginOverlay.style.display = 'none';
+            }, 300);
+
+            // 첫 대화 초기화 및 로컬스토리지 대화 히스토리 리로드
+            dialogueHistory = JSON.parse(localStorage.getItem(`history_${currentUserId}`) || "[]");
+            chatInput.focus();
+        }
+
+        // 로그아웃 처리
+        function performLogout() {
+            localStorage.removeItem('skinmate_username');
+            currentUser = null;
+            currentUserId = null;
+            dialogueHistory = [];
+            
+            // UI 원복
+            displayUser.textContent = '사용자';
+            loginUsername.value = '';
+            loginOverlay.style.display = 'flex';
+            setTimeout(() => {
+                loginOverlay.style.opacity = '1';
+            }, 10);
+            
+            // 기존 챗 초기화
+            chatWindow.innerHTML = `
+                <div class="message-row ai">
+                    <div class="bubble">안녕하세요! 저는 피부 고민과 선호 성분을 기억하여 맞춤 화장품을 추천해 드리는 SkinMate AI입니다. 성향, 고민, 혹은 최근 피부 상태를 알려주시면 기억해 두고 최적의 제품을 추천해 드릴게요!</div>
+                </div>
+            `;
+        }
+
+        // 로드 시 자동 로그인 확인
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedName = localStorage.getItem('skinmate_username');
+            if (savedName) {
+                performLogin(savedName);
+            }
+        });
+
+        // 이벤트 리스너 연결
+        loginSubmit.addEventListener('click', () => performLogin(loginUsername.value));
+        loginUsername.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') performLogin(loginUsername.value);
+        });
+        logoutTrigger.addEventListener('click', performLogout);
+
+        // 메시지 렌더링
+        function appendMessage(sender, text) {
+            const row = document.createElement('div');
+            row.className = `message-row ${sender}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.textContent = text;
+            
+            row.appendChild(bubble);
+            chatWindow.appendChild(row);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        // 로딩 인디케이터 렌더러
+        let loaderRow = null;
+        function showLoader() {
+            if (loaderRow) return;
+            loaderRow = document.createElement('div');
+            loaderRow.className = 'message-row ai';
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            
+            const loader = document.createElement('div');
+            loader.className = 'typing-loader';
+            loader.innerHTML = '<span></span><span></span><span></span>';
+            
+            bubble.appendChild(loader);
+            loaderRow.appendChild(bubble);
+            chatWindow.appendChild(loaderRow);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function removeLoader() {
+            if (loaderRow) {
+                loaderRow.remove();
+                loaderRow = null;
+            }
+        }
+
+        // 메시지 전송 로직
+        async function sendMessage() {
+            const text = chatInput.value.trim();
+            if (!text || !currentUserId) return;
+
+            // 1. 화면에 사용자 버블 렌더링
+            appendMessage('user', text);
+            chatInput.value = '';
+            chatInput.style.height = '48px';
+            
+            // 상태 통제
+            chatInput.disabled = true;
+            sendTrigger.disabled = true;
+            showLoader();
+
+            // 2. 백엔드 요청 파라미터 조립
+            const season = seasonSelect.value || null;
+            const payload = {
+                user_id: currentUserId,
+                utterance: text,
+                history: dialogueHistory.slice(-6), // 최근 6개 발화 히스토리만 전달
+                season: season
+            };
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP 에러 발생: ${response.status}`);
+                }
+
+                const data = await response.json();
+                removeLoader();
+
+                // 3. 화면에 AI 추천 버블 렌더링
+                appendMessage('ai', data.message);
+
+                // 4. 히스토리 적재 및 로컬 캐싱
+                dialogueHistory.push(text);
+                dialogueHistory.push(data.message);
+                if (dialogueHistory.length > 20) {
+                    dialogueHistory = dialogueHistory.slice(-20);
+                }
+                localStorage.setItem(`history_${currentUserId}`, JSON.stringify(dialogueHistory));
+
+            } catch (error) {
+                console.error(error);
+                removeLoader();
+                appendMessage('ai', '죄송합니다. 추천 로직 처리 중 일시적인 오류가 발생했습니다. 다시 시도해 주세요.');
+            } finally {
+                chatInput.disabled = false;
+                sendTrigger.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        // 텍스트 인풋 높이 자동조절 및 엔터키 전송 처리
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        sendTrigger.addEventListener('click', sendMessage);
+    </script>
+</body>
+</html>
