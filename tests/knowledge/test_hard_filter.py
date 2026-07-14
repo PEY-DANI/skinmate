@@ -2,32 +2,12 @@
 
 from __future__ import annotations
 
-import os
-
 import psycopg
-import pytest
 
 from skinmate.knowledge.hard_filter import (
     filter_avoided_products,
     get_avoided_ingredients_for_user,
 )
-
-
-@pytest.fixture(name="db_conn")
-def fixture_db_conn():
-    """테스트용 DB 연결 피스처. 트랜잭션 격리 및 테스트 후 강제 롤백 처리."""
-    db_url = os.getenv(
-        "DATABASE_URL",
-        "postgresql://skinmate:skinmate-dev-only@localhost:5432/skinmate",
-    )
-    # superuser 권한(skinmate)으로 임시 테이블 삽입 및 RLS 우회(세팅 목적) 작업 수행
-    try:
-        with psycopg.connect(db_url, autocommit=False) as conn:
-            yield conn
-            # 테스트 종료 시 자동으로 트랜잭션을 롤백하여 DB 오염 방지
-            conn.rollback()
-    except psycopg.OperationalError:
-        pytest.skip("database connection failed, skipping hard filter unit test.")
 
 
 def test_avoid_ingredient_hard_filter(db_conn: psycopg.Connection) -> None:
@@ -65,13 +45,17 @@ def test_avoid_ingredient_hard_filter(db_conn: psycopg.Connection) -> None:
             """)
 
         # 4. 테스트용 임시 유저(9999)의 기피 성분 기억 등록
-        cur.execute(
-            """
-            INSERT INTO memories (user_id, content, fact_type, target_ingredient_id)
-            VALUES (9999, '레티놀은 피하고 싶어요', 'avoid_ingredient', %s);
-            """,
-            (retinol_id,),
-        )
+        # memories 조작은 RLS scope(user_id=9999) 하에서 실행해야 함
+        from skinmate import db
+
+        with db.user_scope(db_conn, 9999):
+            cur.execute(
+                """
+                INSERT INTO memories (user_id, content, fact_type, target_ingredient_id)
+                VALUES (9999, '레티놀은 피하고 싶어요', 'avoid_ingredient', %s);
+                """,
+                (retinol_id,),
+            )
 
     # 비-superuser인 skinmate_app 계정으로 쿼리가 돌았을 때 RLS 동작을 검증하기 위해,
     # psycopg 세션 격리(GUC app.current_user_id)를 적용하여 테스트 진행
@@ -79,13 +63,13 @@ def test_avoid_ingredient_hard_filter(db_conn: psycopg.Connection) -> None:
     user_id = 9999
     product_ids = [retinol_essence, moisture_cream, gentle_toner]
 
-    # 5. 기피 성분 ID 조회 테스트
-    avoided_ings = get_avoided_ingredients_for_user(db_conn, user_id)
-    assert retinol_id in avoided_ings
-    assert alcohol_id not in avoided_ings
+    # 5. 기피 성분 ID 조회 및 하드필터 배제 테스트는 user_scope 내부에서 수행되어야 RLS를 통과함
+    with db.user_scope(db_conn, user_id):
+        avoided_ings = get_avoided_ingredients_for_user(db_conn, user_id)
+        assert retinol_id in avoided_ings
+        assert alcohol_id not in avoided_ings
 
-    # 6. 하드필터 배제 테스트
-    filtered_products = filter_avoided_products(db_conn, user_id, product_ids)
+        filtered_products = filter_avoided_products(db_conn, user_id, product_ids)
 
     # 레티놀 에센스(retinol_essence)가 물리적으로 완전히 빠져야 함
     assert retinol_essence not in filtered_products

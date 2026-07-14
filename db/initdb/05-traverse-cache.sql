@@ -6,7 +6,7 @@ SET search_path = public;
 
 -- 1. 캐시 테이블 생성
 CREATE TABLE IF NOT EXISTS public.traverse_cache (
-    user_id INT NOT NULL,
+    user_id BIGINT NOT NULL,
     season VARCHAR(50) NOT NULL,
     paths_json JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -22,11 +22,11 @@ ALTER TABLE public.traverse_cache FORCE  ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS traverse_cache_isolation_policy ON public.traverse_cache;
 CREATE POLICY traverse_cache_isolation_policy ON public.traverse_cache
     FOR ALL
-    USING (user_id = NULLIF(current_setting('app.current_user_id', true), '')::integer)
-    WITH CHECK (user_id = NULLIF(current_setting('app.current_user_id', true), '')::integer);
+    USING (user_id = NULLIF(current_setting('app.current_user_id', true), '')::bigint)
+    WITH CHECK (user_id = NULLIF(current_setting('app.current_user_id', true), '')::bigint);
 
--- 4. skinmate_app 역할에 권한 부여(populate_global_knowledge 의 TRUNCATE 포함)
-GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON public.traverse_cache TO skinmate_app;
+-- 4. skinmate_app 역할에 권한 부여
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.traverse_cache TO skinmate_app;
 
 -- 5. memories 변경 감지 시 캐시 무효화 함수 정의
 CREATE OR REPLACE FUNCTION public.fn_invalidate_traverse_cache()
