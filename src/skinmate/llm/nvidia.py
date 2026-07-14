@@ -59,12 +59,13 @@ class NvidiaProvider:
     def _generate(self, system: str, prompt: str, temperature: float) -> str:
         """NVIDIA NIM API chat completion을 호출하며, 발생한 에러를 LLMError로 래핑."""
         from openai import OpenAI
+        from openai.types.chat import ChatCompletionMessageParam
 
         if not self._api_key:
             raise LLMError("NVIDIA API Key (OPENAI_API_KEY)가 설정되어 있지 않습니다.")
 
         client = OpenAI(base_url=self._base_url, api_key=self._api_key)
-        messages = [
+        messages: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ]
@@ -77,7 +78,7 @@ class NvidiaProvider:
                 max_tokens=4096,
                 stream=False,
             )
-            content = completion.choices[0].message.content
+            content = completion.choices[0].message.content  # type: ignore[union-attr,unused-ignore]
             if not content:
                 raise LLMError("NVIDIA 빈 응답")
             return str(content)
