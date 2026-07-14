@@ -66,6 +66,11 @@ def handle_turn(
         return TurnResult(route=Route.VAGUE, message=FALLBACK_MESSAGE)
 
     rationale = generate_rationale(provider, retrieval_context)
+    if rationale.response == FALLBACK_MESSAGE:
+        known = known_slots_from_memory(memory_facts) | decision.known_slots()
+        question = next_funnel_question(known) or FALLBACK_MESSAGE
+        return TurnResult(route=Route.VAGUE, message=question)
+
     return TurnResult(
         route=Route.SPECIFIC,
         message=rationale.response,
