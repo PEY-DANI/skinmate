@@ -43,13 +43,11 @@ def test_resolve_ingredient_id_reuses_dictionary_entry_by_name_ko(
     새로 생성되어 그래프 지식(TREATS 등)과 단절되는 결함(2026-07-10 실데이터 검증 중 발견)."""
     with db_conn.cursor() as cur:
         # 성분사전 크롤(name_en 보유) 결과를 시뮬레이션 — 영문 canonical_key로 적재됨.
-        cur.execute(
-            """
+        cur.execute("""
             INSERT INTO ingredients (canonical_key, name_ko, name_en, grade, intro, source_meta)
             VALUES ('test_retinol_dict', '테스트레티놀', 'Test Retinol', 'Good', '사전 항목', '{}')
             RETURNING ingredient_id;
-            """
-        )
+            """)
         row = cur.fetchone()
         assert row is not None
         dict_id = row[0]
