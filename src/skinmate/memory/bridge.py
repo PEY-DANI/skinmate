@@ -126,12 +126,22 @@ def _project_labeled(
     if decision.op in (CrudOp.ADD, CrudOp.UPDATE):
         new_edge = _edge_type_for(decision, edge_map, use_existing=False)
         assert new_edge is not None  # ADD/UPDATE 는 fact.fact_type 이 항상 edge_map 에 있음
+        # MERGE 로 새로 생성된 관계에 곧바로 SET 을 이어붙이면 AGE 가 속성을 실제로
+        # 영속화하지 않는(카탈로그 미반영) 알려진 결함이 있다 — MERGE 로 존재를 보장한 뒤
+        # 별도의 MATCH+SET 호출로 나눠야 한다(노드 속성은 이 문제가 없음, 관계만 해당).
         choke.age_exec(
             conn,
             user_id,
             f"MERGE (u:User {{user_id: $user_scope}}) "
             f"MERGE (t:{label} {{{key_prop}: $key}}) "
-            f"MERGE (u)-[r:{new_edge}]->(t) SET r.user_scope = $user_scope",
+            f"MERGE (u)-[r:{new_edge}]->(t)",
+            {"key": key_value},
+        )
+        choke.age_exec(
+            conn,
+            user_id,
+            f"MATCH (u:User {{user_id: $user_scope}})-[r:{new_edge}]->"
+            f"(t:{label} {{{key_prop}: $key}}) SET r.user_scope = $user_scope",
             {"key": key_value},
         )
 
@@ -155,11 +165,21 @@ def _project_concern(
         )
         return
 
+    # MERGE 로 새로 생성된 관계에 곧바로 SET 을 이어붙이면 AGE 가 속성을 실제로 영속화하지
+    # 않는(카탈로그 미반영) 알려진 결함이 있다 — MERGE 로 존재를 보장한 뒤 별도의 MATCH+SET
+    # 호출로 나눠야 한다(노드 속성은 이 문제가 없음, 관계만 해당).
     choke.age_exec(
         conn,
         user_id,
         "MERGE (u:User {user_id: $user_scope}) "
         "MERGE (c:Concern {name: $key}) "
-        "MERGE (u)-[r:HAS_CONCERN]->(c) SET r.user_scope = $user_scope, r.season = $season",
+        "MERGE (u)-[r:HAS_CONCERN]->(c)",
+        {"key": concern_key},
+    )
+    choke.age_exec(
+        conn,
+        user_id,
+        "MATCH (u:User {user_id: $user_scope})-[r:HAS_CONCERN]->(c:Concern {name: $key}) "
+        "SET r.user_scope = $user_scope, r.season = $season",
         {"key": concern_key, "season": decision.fact.season},
     )

@@ -10,6 +10,8 @@ import os
 
 import psycopg
 
+from skinmate.documents.embed import embed_text
+
 
 def main() -> None:
     db_url = os.getenv(
@@ -94,23 +96,28 @@ def main() -> None:
             ing_map = {row[0]: row[1] for row in cur.fetchall()}
 
             # 나. 제품 (products)
-            dummy_vector = [0.0] * 1024
+            # 벡터 유사도 검색(pgvector)이 실제로 동작하려면 0으로 채운 더미 벡터가 아니라
+            # 콘텐츠 기반 임베딩이 필요하다 — 제로벡터는 코사인 거리 계산 시 NaN을 유발해
+            # HNSW 인덱스 스캔 자체가 깨지고, 테이블의 다른 정상 벡터까지 검색 결과에서
+            # 전부 사라지는 문제가 있었다(Phase 1 검증 중 발견).
             emulsion_desc = (
                 "끈적임 없는 가벼운 제형의 고보습 에멀전. "
                 "히알루론산이 풍부하게 함유되어 속건조를 해결."
             )
             retinol_desc = "주름 개선을 돕는 고농축 레티놀 세럼. " "민감성 피부는 자극 주의."
+            emulsion_vector = embed_text(emulsion_desc)
+            retinol_vector = embed_text(retinol_desc)
             cur.execute(
                 """
                 INSERT INTO products (
                     name, brand, category, description, embedding, embedding_model_id
                 )
-                VALUES 
+                VALUES
                 ('수분 에멀전', 'coos', '에멀전', %s, %s, 'bge-m3'),
                 ('레티놀 0.1 세럼', 'paulas-choice', '세럼', %s, %s, 'bge-m3')
                 RETURNING name, product_id;
                 """,
-                (emulsion_desc, dummy_vector, retinol_desc, dummy_vector),
+                (emulsion_desc, emulsion_vector, retinol_desc, retinol_vector),
             )
             prod_map = {row[0]: row[1] for row in cur.fetchall()}
 
@@ -129,6 +136,7 @@ def main() -> None:
                 "함유된 에멀전 제형을 사용하는 것이 좋습니다. 반면, 무거운 페이스 오일은 "
                 "민감하거나 지성 피부에 끈적임과 자극을 유발할 수 있으므로 피하는 것이 안전합니다."
             )
+            doc_vector = embed_text(doc_content)
             cur.execute(
                 """
                 INSERT INTO documents (content, embedding, embedding_model_id, source_meta)
@@ -140,7 +148,7 @@ def main() -> None:
                     '"robots_ok": true}'::jsonb
                 );
                 """,
-                (doc_content, dummy_vector),
+                (doc_content, doc_vector),
             )
 
             # 마. 개인 기억 (memories)
