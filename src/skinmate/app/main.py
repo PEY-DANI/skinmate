@@ -9,7 +9,8 @@ from skinmate import db
 from skinmate.app.turn import process_turn
 from skinmate.chat.orchestrator import TurnResult
 from skinmate.config import settings
-from skinmate.llm.gemini import GeminiProvider
+from skinmate.llm.base import LLMProvider
+from skinmate.llm.nvidia import NvidiaProvider
 
 app = FastAPI(title="skinmate")
 
@@ -21,8 +22,8 @@ class ChatRequest(BaseModel):
     season: str | None = None
 
 
-def _get_provider() -> GeminiProvider:
-    return GeminiProvider(api_key=settings.gemini_api_key, model=settings.llm_model)
+def _get_provider() -> LLMProvider:
+    return NvidiaProvider(api_key=settings.openai_api_key, model=settings.llm_model)
 
 
 @app.post("/chat")
