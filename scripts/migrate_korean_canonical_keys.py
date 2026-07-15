@@ -188,9 +188,7 @@ def _repoint_product_ingredients(
 
     반환: (repointed, deduped) 카운트.
     """
-    cur.execute(
-        "SELECT product_id FROM product_ingredients WHERE ingredient_id = %s;", (kor_id,)
-    )
+    cur.execute("SELECT product_id FROM product_ingredients WHERE ingredient_id = %s;", (kor_id,))
     product_ids = [row[0] for row in cur.fetchall()]
 
     repointed = 0

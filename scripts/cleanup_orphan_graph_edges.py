@@ -54,20 +54,18 @@ def _find_orphans(
     orphans: list[tuple[str, str, str, str, str]] = []
     for edge_label in edge_labels:
         cur.execute(
-            sql.SQL(
-                """
+            sql.SQL("""
                 SELECT id, start_id, end_id,
                        start_id NOT IN (SELECT id FROM ({verts}) AS sv) AS start_missing,
                        end_id NOT IN (SELECT id FROM ({verts}) AS ev) AS end_missing
                 FROM {edge}
                 WHERE start_id NOT IN (SELECT id FROM ({verts}) AS sv2)
                    OR end_id NOT IN (SELECT id FROM ({verts}) AS ev2)
-                """
-            ).format(verts=vertex_union, edge=_table(edge_label)),
+                """).format(verts=vertex_union, edge=_table(edge_label)),
         )
         for edge_id, start_id, end_id, start_missing, end_missing in cur.fetchall():
-            missing_side = "both" if start_missing and end_missing else (
-                "start" if start_missing else "end"
+            missing_side = (
+                "both" if start_missing and end_missing else ("start" if start_missing else "end")
             )
             orphans.append((edge_label, str(edge_id), str(start_id), str(end_id), missing_side))
     return orphans

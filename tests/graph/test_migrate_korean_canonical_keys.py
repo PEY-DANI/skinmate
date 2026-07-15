@@ -23,34 +23,28 @@ def test_repoint_product_ingredients_per_row_avoids_pk_conflict(
     발생하지 않는다.
     """
     with db_conn.cursor() as cur:
-        cur.execute(
-            """
+        cur.execute("""
             INSERT INTO ingredients (canonical_key, name_ko)
             VALUES ('test_dedup_eng', '테스트중복성분')
             RETURNING ingredient_id;
-            """
-        )
+            """)
         eng_row = cur.fetchone()
         assert eng_row is not None
         eng_id = eng_row[0]
 
-        cur.execute(
-            """
+        cur.execute("""
             INSERT INTO ingredients (canonical_key, name_ko)
             VALUES ('테스트중복성분한글A', '테스트중복성분'),
                    ('테스트중복성분한글B', '테스트중복성분')
             RETURNING ingredient_id;
-            """
-        )
+            """)
         kor_a_id, kor_b_id = (row[0] for row in cur.fetchall())
 
-        cur.execute(
-            """
+        cur.execute("""
             INSERT INTO products (name, brand, description)
             VALUES ('테스트 중복상품', '테스트브랜드', '')
             RETURNING product_id;
-            """
-        )
+            """)
         product_row = cur.fetchone()
         assert product_row is not None
         product_id = product_row[0]
