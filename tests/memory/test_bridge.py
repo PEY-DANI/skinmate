@@ -59,6 +59,26 @@ def test_resolve_ingredient_not_found(conn: psycopg.Connection[object]) -> None:
     assert bridge.resolve_ingredient(conn, "존재하지않는성분XYZ") is None
 
 
+def test_resolve_ingredient_prefers_ascii_key_over_korean_duplicate(
+    conn: psycopg.Connection[object],
+) -> None:
+    """같은 name_ko 에 정규 영문 canonical_key 행과 한글 canonical_key 행이 모두 있을 때,
+    영문 키 행이 결정적으로 반환되어야 한다(ORDER BY 없는 LIMIT 1 비결정성 회귀 방지)."""
+    _require_seed(conn)
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM ingredients WHERE name_ko = %s", ("레티놀",))
+        (dup_count,) = cur.fetchone()
+    if dup_count < 2:
+        pytest.skip(
+            "레티놀 한글/영문 canonical_key 중복 행 없음(merge_duplicate_ingredients.py 미실행)"
+        )
+
+    resolved = bridge.resolve_ingredient(conn, "레티놀")
+    assert resolved is not None
+    _ingredient_id, canonical_key = resolved
+    assert canonical_key == "retinol"
+
+
 def test_resolve_concern_key_found(conn: psycopg.Connection[object]) -> None:
     with db.user_scope(conn, _UID):
         key = bridge.resolve_concern_key(conn, "건조")

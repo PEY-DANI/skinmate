@@ -10,6 +10,7 @@ writer(1B.4)의 같은 트랜잭션 안에서 호출된다(PRD F4-bridge, ⭐5).
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import psycopg
@@ -27,21 +28,36 @@ BRAND_FACT_TYPES = frozenset({FactType.AVOID_BRAND, FactType.PREFER_BRAND})
 _INGREDIENT_EDGE = {FactType.AVOID_INGREDIENT: "AVOIDS", FactType.PREFER_INGREDIENT: "PREFERS"}
 _BRAND_EDGE = {FactType.AVOID_BRAND: "AVOIDS", FactType.PREFER_BRAND: "PREFERS"}
 
+_ASCII_KEY_RE = re.compile(r"^[a-z0-9_]+$")
+
 
 def resolve_ingredient(conn: psycopg.Connection[Any], name: str) -> tuple[int, str] | None:
-    """자유텍스트 성분명 → (ingredient_id, canonical_key). 매칭 실패 시 None(PRD F1 예외)."""
+    """자유텍스트 성분명 → (ingredient_id, canonical_key). 매칭 실패 시 None(PRD F1 예외).
+
+    같은 name_ko/name_en 을 가진 중복 행(정규 영문 canonical_key 행 vs 제품 성분표 기반
+    자동 등록된 한글 canonical_key 행)이 있을 수 있어, ORDER BY 로 영문 키 행을 우선
+    선택하고 동률은 ingredient_id 로 고정해 결과를 결정적으로 만든다.
+    """
     with conn.cursor() as cur:
         cur.execute(
             """
             SELECT ingredient_id, canonical_key FROM ingredients
             WHERE lower(name_ko) = lower(%s) OR lower(name_en) = lower(%s)
                OR lower(canonical_key) = lower(%s)
+            ORDER BY (canonical_key ~ '^[a-z0-9_]+$') DESC, ingredient_id ASC
             LIMIT 1
             """,
             (name, name, name),
         )
         row = cur.fetchone()
-    return (row[0], row[1]) if row else None
+    if row is None:
+        return None
+    ingredient_id, canonical_key = row[0], row[1]
+    if not _ASCII_KEY_RE.match(canonical_key):
+        logger.warning(
+            "bridge_resolved_nonascii_key", ingredient_id=ingredient_id, canonical_key=canonical_key
+        )
+    return (ingredient_id, canonical_key)
 
 
 def resolve_concern_key(conn: psycopg.Connection[Any], label: str) -> str | None:

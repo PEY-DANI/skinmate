@@ -15,6 +15,10 @@ import structlog
 
 logger = structlog.get_logger()
 
+# 유효한 canonical_key 패턴(영문 소문자/숫자/언더스코어) — 한글 등 비ASCII 키는
+# 그래프 노드로 투영하지 않고 skip한다(문자 삭제·변형 정제는 하지 않음, 파괴적 정제 금지).
+_VALID_KEY_RE = re.compile(r"^[a-z0-9_]+$")
+
 # 고민 정합성 및 키워드 규칙 정의 (유동적 확장 가능)
 CONCERN_RULES: dict[str, dict[str, Any]] = {
     "dryness": {
@@ -105,9 +109,11 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
         logger.info("fetched_ingredients_for_graph", count=len(ingredients))
 
         ing_sqls = []
+        invalid_ingredient_key_count = 0
         for key, name_ko in ingredients:
-            safe_key = re.sub(r"[^a-z0-9_]+", "", key.lower())
-            if not safe_key:
+            safe_key = key.lower()
+            if not _VALID_KEY_RE.match(safe_key):
+                invalid_ingredient_key_count += 1
                 continue
             ing_sqls.append(
                 f"SELECT * FROM cypher('skinmate', $$"
@@ -147,9 +153,11 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
         logger.info("fetched_contains_mappings_for_graph", count=len(mappings))
 
         contains_sqls = []
+        invalid_contains_key_count = 0
         for prod_id, key in mappings:
-            safe_key = re.sub(r"[^a-z0-9_]+", "", key.lower())
-            if not safe_key:
+            safe_key = key.lower()
+            if not _VALID_KEY_RE.match(safe_key):
+                invalid_contains_key_count += 1
                 continue
             contains_sqls.append(
                 f"SELECT * FROM cypher('skinmate', $$"
@@ -169,9 +177,13 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
         logger.info("analyzing_ingredient_intros_for_relations", count=len(ing_intros))
 
         relation_sqls = []
+        invalid_relation_key_count = 0
         for key, intro in ing_intros:
-            safe_key = re.sub(r"[^a-z0-9_]+", "", key.lower())
-            if not safe_key or not intro:
+            if not intro:
+                continue
+            safe_key = key.lower()
+            if not _VALID_KEY_RE.match(safe_key):
+                invalid_relation_key_count += 1
                 continue
 
             # 가. TREATS 관계 검사
@@ -247,9 +259,11 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
             """)
         avoid_mems = cur.fetchall()
         avoid_sqls = []
+        invalid_avoids_key_count = 0
         for uid, key in avoid_mems:
-            safe_key = re.sub(r"[^a-z0-9_]+", "", key.lower())
-            if not safe_key:
+            safe_key = key.lower()
+            if not _VALID_KEY_RE.match(safe_key):
+                invalid_avoids_key_count += 1
                 continue
             avoid_sqls.append(
                 f"SELECT * FROM cypher('skinmate', $$"
@@ -270,9 +284,11 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
             """)
         prefer_mems = cur.fetchall()
         prefer_sqls = []
+        invalid_prefers_key_count = 0
         for uid, key in prefer_mems:
-            safe_key = re.sub(r"[^a-z0-9_]+", "", key.lower())
-            if not safe_key:
+            safe_key = key.lower()
+            if not _VALID_KEY_RE.match(safe_key):
+                invalid_prefers_key_count += 1
                 continue
             prefer_sqls.append(
                 f"SELECT * FROM cypher('skinmate', $$"
@@ -285,16 +301,30 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
             cur.execute("\n".join(prefer_sqls))
 
         # 라. HAS_CONCERN 엣지 생성
+        # target_name 은 두 가지 형태로 저장될 수 있다: CONCERN_RULES 의 영문 키 그대로
+        # (예: 'dryness') 또는 한글 라벨(예: '건조'). ① 키와 정확히 일치하면 그대로 사용,
+        # ② 아니면 라벨→키 역방향 dict 로 변환, ③ 둘 다 실패하면 skip + 카운터
+        # (문자 삭제·변형 정제는 하지 않는다 — 파괴적 정제 금지).
+        concern_label_to_key = {rule["label"]: name for name, rule in CONCERN_RULES.items()}
         cur.execute("""
-            SELECT user_id, target_name, season 
-            FROM memories 
+            SELECT user_id, target_name, season
+            FROM memories
             WHERE fact_type = 'has_concern' AND deleted_at IS NULL;
             """)
         concern_mems = cur.fetchall()
         concern_sqls = []
+        invalid_concern_key_count = 0
         for uid, target_name, season in concern_mems:
-            safe_target = re.sub(r"[^a-z0-9_]+", "", target_name.lower())
-            if not safe_target:
+            if not target_name:
+                invalid_concern_key_count += 1
+                continue
+            lower_target = target_name.lower()
+            if lower_target in CONCERN_RULES:
+                concern_key = lower_target
+            elif target_name in concern_label_to_key:
+                concern_key = concern_label_to_key[target_name]
+            else:
+                invalid_concern_key_count += 1
                 continue
             props = f"user_scope: {int(uid)}"
             if season:
@@ -302,14 +332,36 @@ def populate_global_knowledge(conn: psycopg.Connection[Any]) -> None:
             concern_sqls.append(
                 f"SELECT * FROM cypher('skinmate', $$"
                 f"MATCH (u:User {{user_id: {int(uid)}}}), "
-                f"      (c:Concern {{name: '{safe_target}'}})"
+                f"      (c:Concern {{name: '{concern_key}'}})"
                 f"MERGE (u)-[r:HAS_CONCERN {{{props}}}]->(c)"
                 f"$$) AS (result agtype);"
             )
         if concern_sqls:
             cur.execute("\n".join(concern_sqls))
 
-        # 8. 전역 지식이 변경되었으므로 모든 유저의 순회 경로 캐시를 전체 리셋(DELETE)합니다.
+        # 8. 무효 canonical_key(비ASCII 등) 로 인해 skip된 항목이 있으면 집계 경고 로그 출력
+        # (파괴적 정제 대신 skip 방식으로 바뀌었으므로, 실제 누락 규모를 운영자가 확인할 수 있게 함)
+        invalid_key_total = (
+            invalid_ingredient_key_count
+            + invalid_contains_key_count
+            + invalid_relation_key_count
+            + invalid_avoids_key_count
+            + invalid_prefers_key_count
+        )
+        if invalid_key_total:
+            logger.warning(
+                "invalid_canonical_key_skipped",
+                ingredient=invalid_ingredient_key_count,
+                contains=invalid_contains_key_count,
+                treats_aggravates=invalid_relation_key_count,
+                avoids=invalid_avoids_key_count,
+                prefers=invalid_prefers_key_count,
+                total=invalid_key_total,
+            )
+        if invalid_concern_key_count:
+            logger.warning("has_concern_resolution_skipped", count=invalid_concern_key_count)
+
+        # 9. 전역 지식이 변경되었으므로 모든 유저의 순회 경로 캐시를 전체 리셋(DELETE)합니다.
         logger.info("invalidating_all_traverse_cache_due_to_global_knowledge_update")
         cur.execute("DELETE FROM public.traverse_cache;")
 
