@@ -168,6 +168,7 @@ def retrieve_recommendation_context(
                 (product_ids,),
             )
             from collections import defaultdict
+
             ing_map = defaultdict(list)
             for pid, name_ko in cur.fetchall():
                 if name_ko:
