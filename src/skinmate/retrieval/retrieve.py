@@ -103,7 +103,7 @@ def retrieve_recommendation_context(
             avoids_oil = True
 
     # 기피 성분 ID 수집 (Hard-filter용)
-    avoid_ingredient_ids = [
+    raw_avoid_ids = [
         fact.target_ingredient_id
         for fact in memory_facts
         if fact.fact_type == FactType.AVOID_INGREDIENT and fact.target_ingredient_id is not None
@@ -113,6 +113,30 @@ def retrieve_recommendation_context(
     # 근거 문서(source_doc_ids)를 먼저 수집한다. 하드필터·doc_hits 조립에 모두 쓰인다.
     graph_paths = traverse_recommendation_paths(conn, user_id, query, season=season)
     recommended_ingredient_ids = _recommended_ingredient_ids(graph_paths)
+    avoid_ingredient_ids = []
+    if raw_avoid_ids:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH target_ingredients AS (
+                    SELECT canonical_key, name_ko 
+                    FROM ingredients 
+                    WHERE ingredient_id = ANY(%s)
+                )
+                SELECT i.ingredient_id 
+                FROM ingredients i
+                JOIN target_ingredients t
+                  ON i.canonical_key = t.canonical_key
+                  OR i.canonical_key = t.name_ko
+                  OR t.canonical_key = i.name_ko
+                  OR i.name_ko = t.name_ko
+                  OR i.name_ko LIKE t.name_ko || '(%%'
+                  OR t.name_ko LIKE i.name_ko || '(%%'
+                  OR lower(i.canonical_key) = lower(t.canonical_key);
+                """,
+                (raw_avoid_ids,),
+            )
+            avoid_ingredient_ids = [row[0] for row in cur.fetchall()]
 
     # 2. pgvector 기반 제품 코사인 유사도 검색 수행
     query_vector = embed_text(query)
@@ -197,6 +221,30 @@ def retrieve_recommendation_context(
     graph_doc_hits = _fetch_graph_evidence_docs(conn, graph_doc_ids)
     graph_doc_id_set = {d.doc_id for d in graph_doc_hits}
 
+    # 최종 후보 제품들의 성분(한글명) 목록 일괄 조회 및 바인딩
+    if final_products:
+        product_ids = [p.product_id for p in final_products]
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT pi.product_id, i.name_ko 
+                FROM product_ingredients pi
+                JOIN ingredients i ON i.ingredient_id = pi.ingredient_id
+                WHERE pi.product_id = ANY(%s)
+                ORDER BY pi.product_id, i.name_ko;
+                """,
+                (product_ids,),
+            )
+            from collections import defaultdict
+
+            ing_map = defaultdict(list)
+            for pid, name_ko in cur.fetchall():
+                if name_ko:
+                    ing_map[pid].append(name_ko)
+            for p in final_products:
+                p.ingredients = ing_map[p.product_id]
+
+    # 4. RAG 문서 유사도 검색 실행
     doc_results = search_documents(settings.database_url, query, limit=limit)
     vector_doc_hits = [
         DocHit(
