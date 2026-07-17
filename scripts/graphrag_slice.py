@@ -55,8 +55,7 @@ def ensure_labels(conn: psycopg.Connection[Any]) -> None:
     """Mechanism vlabel · ACHIEVES elabel 이 없으면 생성 (03-graph-ontology.sql DO 블록 패턴)."""
     with conn.cursor() as cur:
         cur.execute("SET search_path = ag_catalog, public;")
-        cur.execute(
-            """
+        cur.execute("""
             DO $$
             DECLARE
                 gid oid;
@@ -75,8 +74,7 @@ def ensure_labels(conn: psycopg.Connection[Any]) -> None:
                     PERFORM ag_catalog.create_elabel('skinmate', 'ACHIEVES');
                 END IF;
             END $$;
-            """
-        )
+            """)
     logger.info("labels_ensured", vlabel="Mechanism", elabel="ACHIEVES")
 
 
